@@ -14,16 +14,9 @@ let dx = 1;
 let dy = 0;
 let gameSpeed = 100; // 初始游戏速度
 let gameRunning = true;
-
-function drawGame() {
-    if (!gameRunning) return;
-    clearCanvas();
-    moveSnake();
-    drawSnake();
-    drawFood();
-    checkCollision();
-    setTimeout(drawGame, gameSpeed);
-}
+let lastTime = 0;
+// 等待游戏开始的标志
+let waitingForStart = true;
 
 function clearCanvas() {
     ctx.fillStyle = 'white';
@@ -31,6 +24,7 @@ function clearCanvas() {
 }
 
 function moveSnake() {
+    console.log('蛇正在移动');  // 添加这行来检查蛇是否在移动
     const head = {x: snake[0].x + dx, y: snake[0].y + dy};
     snake.unshift(head);
     if (head.x === food.x && head.y === food.y) {
@@ -89,43 +83,112 @@ function resetGame() {
     drawGame();
 }
 
-canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    const snakeHead = snake[0];
-    const centerX = (snakeHead.x + 0.5) * gridSize;
-    const centerY = (snakeHead.y + 0.5) * gridSize;
-    
-    const angle = Math.atan2(mouseY - centerY, mouseX - centerX);
-    
-    let newDx = dx;
-    let newDy = dy;
-    
-    if (Math.abs(angle) < Math.PI / 4) {
-        newDx = 1;
-        newDy = 0;
-    } else if (Math.abs(angle) > 3 * Math.PI / 4) {
-        newDx = -1;
-        newDy = 0;
-    } else if (angle > 0) {
-        newDx = 0;
-        newDy = 1;
-    } else {
-        newDx = 0;
-        newDy = -1;
+function restartGame() {
+    console.log('重新开始游戏');  // 添加这行来检查函数是否被调用
+    if (gameActive) {
+        clearInterval(gameInterval);
     }
     
-    // 防止蛇直接反向移动
-    if (!(newDx === -dx && newDy === -dy)) {
-        dx = newDx;
-        dy = newDy;
+    // 重置游戏状态
+    snake = [{ x: 10, y: 10 }];
+    food = getRandomFood();
+    direction = 'right';
+    score = 0;
+    
+    updateScore();
+    startGame();
+}
+
+function startGame() {
+    // 设置游戏运行状态为真
+    gameRunning = true;
+    // 初始化上一帧的时间
+    lastTime = 0;
+    // 请求动画帧，开始游戏循环
+    requestAnimationFrame(gameLoop);
+}
+
+function gameLoop(currentTime) {
+    if (!gameRunning) return;
+
+    if (waitingForStart) {
+        // 绘制初始状态，但不移动蛇
+        clearCanvas();
+        drawSnake();
+        drawFood();
+        requestAnimationFrame(gameLoop);
+        return;
     }
+
+    const deltaTime = currentTime - lastTime;
+    if (deltaTime >= gameSpeed) {
+        // 更新游戏状态
+        clearCanvas();
+        moveSnake();
+        drawSnake();
+        drawFood();
+        checkCollision();
+        lastTime = currentTime;
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+
+// 确保在页面加载完成后设置游戏
+window.onload = function() {
+    startGame();
+    console.log('游戏已启动');
+};
+
+canvas.addEventListener('mousedown', (e) => {
+    function handleMouseMove(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        const snakeHead = snake[0];
+        const centerX = (snakeHead.x + 0.5) * gridSize;
+        const centerY = (snakeHead.y + 0.5) * gridSize;
+        
+        const angle = Math.atan2(mouseY - centerY, mouseX - centerX);
+        
+        let newDx = dx;
+        let newDy = dy;
+        
+        if (Math.abs(angle) < Math.PI / 4) {
+            newDx = 1;
+            newDy = 0;
+        } else if (Math.abs(angle) > 3 * Math.PI / 4) {
+            newDx = -1;
+            newDy = 0;
+        } else if (angle > 0) {
+            newDx = 0;
+            newDy = 1;
+        } else {
+            newDx = 0;
+            newDy = -1;
+        }
+        
+        // 防止蛇直接反向移动
+        if (!(newDx === -dx && newDy === -dy)) {
+            dx = newDx;
+            dy = newDy;
+        }
+    }
+
+    canvas.addEventListener('mousemove', handleMouseMove);
+    
+    canvas.addEventListener('mouseup', () => {
+        canvas.removeEventListener('mousemove', handleMouseMove);
+    }, { once: true });
 });
 
 // 添加键盘控制速度
 document.addEventListener('keydown', (e) => {
+    if (waitingForStart) {
+        waitingForStart = false;
+    }
     switch(e.key) {
         case 'ArrowUp':
             if (gameSpeed > 50) { // 最小速度限制
@@ -152,5 +215,6 @@ function addSpeedDisplay() {
 // 在游戏开始前调用此函数
 addSpeedDisplay();
 
-drawGame();
+// 移除原来的 drawGame() 调用
+// drawGame();
 
